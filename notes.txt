@@ -1,0 +1,62 @@
+### **1. Exponential Smoothing Models**
+- **Simple Exponential Smoothing (SES)**: For non-trending and non-seasonal data.
+- **Holt’s Linear Trend Method**: To handle a linear trend without seasonality.
+- **Holt-Winters Methods**:
+  - **Additive Seasonal Holt-Winters**: For linear trends with additive seasonality.
+  - **Multiplicative Seasonal Holt-Winters**: For linear trends with multiplicative seasonality.
+- Damped Seasonal Holt-Winters Model: Test with dampened trends and seasonal effects.
+
+### **2. ARIMA Models**
+- **Non-Seasonal ARIMA (AutoRegressive Integrated Moving Average)**:
+  - Includes models like ARIMA(0,1,0) (random walk) and ARIMA(0,2,1) (linear exponential smoothing).
+- **Seasonal ARIMA (SARIMA)**:
+  - Accounts for both seasonal and non-seasonal components (e.g., SARIMA(p, d, q)(P, D, Q)[T]).
+
+### **3. Regression Models**
+- **Linear Regression**: Useful as a baseline but may not be efficient if the data contains trends or seasonality.
+- **Regression with Time Components**: To account for periodic effects or external predictors (e.g., temperature in your case).
+
+Modèles de lissage exponentiel :
+Lissage exponentiel simple
+Méthode de Holt (lissage exponentiel double)
+Méthode de Holt-Winters (lissage exponentiel triple)
+
+Modèles ARIMA :
+AR (Auto-Régressif)
+MA (Moyenne Mobile)
+ARMA (Auto-Régressif et Moyenne Mobile)
+ARIMA (Auto-Régressif Intégré de Moyenne Mobile)
+SARIMA (ARIMA Saisonniers)
+
+Modèles à composantes :
+Décomposition de séries temporelles (additive et multiplicative)
+Modèles multiplicatifs saisonniers
+
+Modèles de régression avec variables exogènes :
+Régression linéaire avec la température comme variable explicative
+Modèles ARIMAX (ARIMA avec variables exogènes)
+
+Modèles spécifiques :
+Modèles à changement de régime (Markov Switching)
+Modèles GARCH (pour la variance conditionnelle)
+
+Modèles basés sur les méthodes non-paramétriques :
+Méthodes de régression locale
+Modèles de lissage par spline
+
+#################"
+
+Séparation des données en ensembles d'entraînement et de test
+Utilisation de mesures d'erreur (MAE, RMSE, MAPE) pour évaluer les performances
+Test de stationnarité (Dickey-Fuller augmenté)
+
+### **4. Model Selection and Evaluation**
+For each model:
+- **Parameter Tuning**: Adjust parameters (e.g., α, β, γ for exponential smoothing; p, d, q for ARIMA).
+- **Cross-Validation**: Apply time-series cross-validation.
+- **Performance Metrics**: Use RMSE, MAPE, or other suitable error metrics.
+
+### **Additional Techniques Covered**
+- **Moving Averages**: For trend or seasonal component smoothing.
+- **Differencing**: To make non-stationary data stationary.
+- **Decomposition**: Separate components (trend, seasonal, residual) for exploratory analysis.
