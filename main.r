@@ -104,7 +104,7 @@ adf.test(train_data_ts[, 1], alternative = "stationary")
 # -----/ III. Prédiction de la consommation électrique /-----
 # -----/ 1. Modèles de lissage exponentiel /-----
 
-# Lissage exponentiel simple : Simple Exponential Smoothing Method
+# Modèle du Lissage Exponentiel Simple : Simple Exponential Smoothing Method
 ses_model <- ses(train_data_ts[, 1], h = 96)
 
 # Affichage des performances
@@ -113,18 +113,15 @@ summary(ses_model)
 # Enregistrement des prédictions
 predictions <- ses_model$mean
 
-# Affiche de la prédiction
-plot(ses_model, xaxt = "n")
+# Affiche des prédictions avec le modèle de lissage exponentiel simple
+plot(ses_model, main = "Prédiction du modèle de Lissage Exponentiel Simple", xlab = "Temps", ylab = "Consommation (kW)")
 
-# Zoom de l'affichage sur la partie prédite
+# Affichage manuel des 96 dernières observations et des prédictions avec le modèle de lissage exponentiel simple
 last_timestamp <- max(train_data$Timestamp)
 forecast_time <- seq(from = last_timestamp + 15 * 60, by = "15 mins", length.out = 96)
-
-# Extraction des 96 dernières observations
 last_96_power <- tail(train_data_ts[, 1], 96)
 last_96_time <- tail(train_data$Timestamp, 96)
 
-# Tracage de graphique
 plot(last_96_time, last_96_power, type = "l",
      col = "black", lwd = 2,
      xlim = c(min(last_96_time), max(forecast_time)),
@@ -135,7 +132,7 @@ lines(forecast_time, predictions, col = "blue", lwd = 2, lty = 2)
 legend("topright", legend = c("Consommation réelle", "Consommation prédite"),
        col = c("black", "blue"), lty = c(1, 2), lwd = 2)
 
-# Lissage exponentiel double : Holt Linear Trend Method
+# Modèle du Lissage Exponentiel Double : Holt Linear Trend Method
 # Ajustement du modèle Holt
 holt_model <- holt(train_data_ts[, 1], h = 96)
 
@@ -146,24 +143,16 @@ summary(holt_model)
 predictions_holt <- holt_model$mean
 
 # Affichage des prédictions
-plot(holt_model, xaxt = "n")
+plot(holt_model, main = "Prédiction du modèle de Lissage Exponentiel Double", xlab = "Temps", ylab = "Consommation (kW)")
 
-# Création d'un vecteur de timestamps pour les prévisions
-last_timestamp <- max(train_data$Timestamp)
-forecast_time_holt <- seq(from = last_timestamp + 15 * 60, by = "15 mins", length.out = 96)
-
-# Extraction des 96 dernières observations du jeu d'entraînement
-last_96_power_holt <- tail(train_data_ts[, 1], 96)
-last_96_time_holt <- tail(train_data$Timestamp, 96)
-
-# Tracé manuel des 96 derniers points et des 96 prédictions Holt
-plot(last_96_time_holt, last_96_power_holt, type = "l",
+# Affichage manuel des 96 dernières observations et des prédictions avec le modèle de Holt
+plot(last_96_time, last_96_power, type = "l",
      col = "black", lwd = 2,
-     xlim = c(min(last_96_time_holt), max(forecast_time_holt)),
-     ylim = range(c(last_96_power_holt, predictions_holt), na.rm = TRUE),
+     xlim = c(min(last_96_time), max(forecast_time)),
+     ylim = range(c(last_96_power, predictions_holt), na.rm = TRUE),
      main = "Prédiction du modèle de Lissage Exponentiel Double",
-     xlab = "Timestamp", ylab = "Consommation (kW)")
-lines(forecast_time_holt, predictions_holt, col = "blue", lwd = 2, lty = 2)
+     xlab = "Temps", ylab = "Consommation (kW)")
+lines(forecast_time, predictions_holt, col = "blue", lwd = 2, lty = 2)
 legend("topright", legend = c("Consommation réelle", "Consommation prédite"),
        col = c("black", "blue"), lty = c(1, 2), lwd = 2)
 
@@ -171,20 +160,90 @@ legend("topright", legend = c("Consommation réelle", "Consommation prédite"),
 # Les modèles prédisent une valeur constante après la dernière observation (ligne bleue horizontale). Nous obtenons de mauvais résultats car les modèles ne prennent pas en compte les tendances ni la saisonnalité, ce qui explique l'absence de variation dans la prévision. Il n’est donc pas adapté pour faire une prédiction sur notre jeu de données.
 # Concernant les lissages exponentiels triples : Holt-Winters Method - Additive Seasonal et Multiplicative seasonal il est impossible de les utiliser car la fréquence des données est trop élevée.
 # De manière générale, les modèles de lissage exponentiel ne sont pas adaptés pour prédire ces données, car elles contiennent une tendance et une saisonnalité significatives.
+# Résultats RMSE et MAPE
 
 # -----/ 2. Modèles ARIMA /-----
 # Application d'une différenciation pour enlever la tendance et la saisonnalité pour la consommation électrique
 train_power_diff <- diff(train_data_ts[, 1], lag = 96, differences = 1)
 
-# Affichage de la décomposition de la série temporelle différenciée
-autoplot(decompose(train_power_diff, type = "additive"), main = "Décomposition additive - Série différenciée de la consommation électrique")
+# Décomposition additive de la série temporelle différenciée pour la consommation électrique
+autoplot(decompose(train_power_diff, type = "additive"), main = "Décomposition additive sur la série différenciée - Consommation électrique")
 
-# Affichage de l'ACF de la série temporelle différenciée
-acf(train_power_diff, lag.max = 5000, main = "ACF - Série différenciée de la consommation électrique")
+# [COMMENTAIRE]
+# 1. Data :
+# On observe une série plus stationnaire en apparence, avec des fluctuations autour de zéro. Les pics et les creux importants qui reflétaient la saisonnalité journalière ont disparu.
+# 2. Trend :
+# On observe des fluctuations, mais sans tendance globale. Cela suggère que la différenciation a permis de supprimer la tendance linéaire.
+# 3. Saisonalité :
+# Après la différenciation saisonnière avec un lag de 96, la composante saisonnière devrait être proche de zéro. C'est ce que l'on observe sur le graphique. La différenciation a effectivement retiré la saisonnalité journalière.
 
-# Affichage de la PACF de la série temporelle différenciée
-pacf(train_power_diff, lag.max = 5000, main = "PACF - Série différenciée de la consommation électrique")
+# Réalisation d'une ACF
+acf(train_power_diff, lag.max = 5000, main = "ACF sur la série différenciée - Consommation électrique")
+
+# [COMMENTAIRE]
+# L'ACF obtenue montre encore des pics significatifs (beaucoup moins nombreux qu'avant la différenciation) notamment aux premiers lags, qui décroissent progressivement vers zéro. Cela suggère la présence d'une composante MA (Moyenne Mobile).
+
+# Réalisation d'une PACF
+pacf(train_power_diff, lag.max = 5000, main = "PACF sur la série différenciée - Consommation électrique")
+
+# [COMMENTAIRE]
+# Le PACF possède un pic important au début, puis des pics plus faibles et une décroissance vers zéro. Cela suggère la présence d'une composante AR (Autorégressive) d'ordre 1.
 
 # Test de Ljung-Box
 lb_test <- Box.test(train_power_diff, lag = 96, type = "Ljung-Box")
 print(lb_test)
+
+# [COMMENTAIRE]
+# La p-value du test de Ljung-Box est inférieure au seuil de 0.05, nous rejetons donc que les résidus peuvent être assimilés à du bruit blanc.
+
+# Modèle Auto-Régressif : AR
+# Ajustement du modèle Auto-Régressif (AR) d'ordre 1
+ar_model <- arima(train_power_diff, order = c(1, 0, 0))
+
+# Affichage du résumé du modèle
+summary(ar_model)
+
+# Génération des prévisions pour les 96 prochaines observations
+forecast_ar <- forecast(ar_model, h = 96)
+
+# Affichage des prédictions
+plot(forecast_ar, main = "Prédiction du modèle Auto-Régressif (AR)", xlab = "Temps", ylab = "Différence de Consommation (kW)")
+
+###################
+forecast_ar_diff <- forecast(ar_model, h = 96)$mean
+
+# Dernière valeur observée de la consommation
+last_value <- as.numeric(tail(train_data_ts[, 1], 1))
+
+# Intégration (somme cumulative) des prévisions des différences pour obtenir les prévisions de la consommation
+forecast_ar_consumption <- last_value + cumsum(forecast_ar_diff)
+
+# Créer un vecteur de temps pour les prévisions
+last_timestamp <- max(train_data$Timestamp)
+forecast_time <- seq(from = last_timestamp + 15 * 60, by = "15 mins", length.out = 96)
+
+# Extraction des 96 dernières observations de la consommation réelle et de leur timestamp
+last_96_power <- tail(train_data_ts[, 1], 96)
+last_96_time <- tail(train_data$Timestamp, 96)
+
+# Affichage manuel des 96 dernières observations et des prédictions de la CONSOMMATION avec le modèle AR
+plot(last_96_time, last_96_power, type = "l",
+     col = "black", lwd = 2,
+     xlim = c(min(last_96_time), max(forecast_time)),
+     ylim = range(c(last_96_power, forecast_ar_consumption), na.rm = TRUE), # Utilisation de forecast_ar_consumption
+     main = "Prédiction du modèle Auto-Régressif (AR) - Consommation en kW",
+     xlab = "Temps", ylab = "Consommation (kW)")
+lines(forecast_time, forecast_ar_consumption, col = "blue", lwd = 2, lty = 2) # Utilisation de forecast_ar_consumption
+legend("topright", legend = c("Consommation réelle", "Consommation prédite (AR)"),
+       col = c("black", "blue"), lty = c(1, 2), lwd = 2)
+
+# # Affichage manuel des 96 dernières observations et des prédictions avec le modèle AR
+# plot(last_96_time, last_96_power, type = "l",
+#      col = "black", lwd = 2,
+#      xlim = c(min(last_96_time), max(forecast_time)),
+#      ylim = range(c(last_96_power, forecast_ar$mean), na.rm = TRUE),
+#      main = "Prédiction du modèle Auto-Régressif (AR)",
+#      xlab = "Temps", ylab = "Consommation (kW)")
+# lines(forecast_time, forecast_ar$mean, col = "blue", lwd = 2, lty = 2)
+# legend("topright", legend = c("Consommation réelle", "Consommation prédite (AR)"),
+#        col = c("black", "blue"), lty = c(1, 2), lwd = 2)
