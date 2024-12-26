@@ -207,43 +207,131 @@ summary(ar_model)
 forecast_ar <- forecast(ar_model, h = 96)
 
 # Affichage des prédictions
-plot(forecast_ar, main = "Prédiction du modèle Auto-Régressif (AR)", xlab = "Temps", ylab = "Différence de Consommation (kW)")
+plot(forecast_ar, main = "Prédiction du modèle Auto-Régressif", xlab = "Temps", ylab = "Différence de Consommation (kW)")
 
-###################
+# Affichage manuel des 96 dernières observations et des prédictions avec le modèle AR
 forecast_ar_diff <- forecast(ar_model, h = 96)$mean
-
-# Dernière valeur observée de la consommation
 last_value <- as.numeric(tail(train_data_ts[, 1], 1))
-
-# Intégration (somme cumulative) des prévisions des différences pour obtenir les prévisions de la consommation
 forecast_ar_consumption <- last_value + cumsum(forecast_ar_diff)
 
-# Créer un vecteur de temps pour les prévisions
-last_timestamp <- max(train_data$Timestamp)
-forecast_time <- seq(from = last_timestamp + 15 * 60, by = "15 mins", length.out = 96)
-
-# Extraction des 96 dernières observations de la consommation réelle et de leur timestamp
-last_96_power <- tail(train_data_ts[, 1], 96)
-last_96_time <- tail(train_data$Timestamp, 96)
-
-# Affichage manuel des 96 dernières observations et des prédictions de la CONSOMMATION avec le modèle AR
 plot(last_96_time, last_96_power, type = "l",
      col = "black", lwd = 2,
      xlim = c(min(last_96_time), max(forecast_time)),
      ylim = range(c(last_96_power, forecast_ar_consumption), na.rm = TRUE), # Utilisation de forecast_ar_consumption
-     main = "Prédiction du modèle Auto-Régressif (AR) - Consommation en kW",
+     main = "Prédiction du modèle Auto-Régressif",
      xlab = "Temps", ylab = "Consommation (kW)")
 lines(forecast_time, forecast_ar_consumption, col = "blue", lwd = 2, lty = 2) # Utilisation de forecast_ar_consumption
-legend("topright", legend = c("Consommation réelle", "Consommation prédite (AR)"),
+legend("topright", legend = c("Consommation réelle", "Consommation prédite"),
        col = c("black", "blue"), lty = c(1, 2), lwd = 2)
 
-# # Affichage manuel des 96 dernières observations et des prédictions avec le modèle AR
-# plot(last_96_time, last_96_power, type = "l",
-#      col = "black", lwd = 2,
-#      xlim = c(min(last_96_time), max(forecast_time)),
-#      ylim = range(c(last_96_power, forecast_ar$mean), na.rm = TRUE),
-#      main = "Prédiction du modèle Auto-Régressif (AR)",
-#      xlab = "Temps", ylab = "Consommation (kW)")
-# lines(forecast_time, forecast_ar$mean, col = "blue", lwd = 2, lty = 2)
-# legend("topright", legend = c("Consommation réelle", "Consommation prédite (AR)"),
-#        col = c("black", "blue"), lty = c(1, 2), lwd = 2)
+# Modèle Moyenne Mobile : MA
+# Ajustement du modèle de Moyenne Mobile (MA) d'ordre 1
+ma_model <- arima(train_power_diff, order = c(0, 0, 1))
+
+# Affichage du résumé du modèle
+summary(ma_model)
+
+# Génération des prévisions pour les 96 prochaines observations
+forecast_ma <- forecast(ma_model, h = 96)
+
+# Affichage des prédictions
+plot(forecast_ma, main = "Prédiction avec le modèle Moyenne Mobile", xlab = "Temps", ylab = "Différence de Consommation (kW)")
+
+# Tracé manuel des 96 derniers points et des 96 prédictions MA
+forecast_ma_diff <- forecast_ma$mean
+forecast_ma_consumption <- last_value + cumsum(forecast_ma_diff)
+
+plot(last_96_time, last_96_power, type = "l",
+     col = "black", lwd = 2,
+     xlim = c(min(last_96_time), max(forecast_time)),
+     ylim = range(c(last_96_power, forecast_ma_consumption), na.rm = TRUE),
+     main = "Prédiction du modèle Moyenne Mobile",
+     xlab = "Temps", ylab = "Consommation (kW)")
+lines(forecast_time, forecast_ma_consumption, col = "blue", lwd = 2, lty = 2)
+legend("topright", legend = c("Consommation réelle", "Consommation prédite"),
+       col = c("black", "blue"), lty = c(1, 2), lwd = 2)
+
+# Modèle Auto-Régressif et Moyenne Mobile : ARMA
+# Ajustement du modèle Auto-Régressif et Moyenne Mobile (ARMA) d'ordre (1, 1)
+arma_model <- arima(train_power_diff, order = c(1, 0, 1))
+
+# Affichage du résumé du modèle
+summary(arma_model)
+
+# Génération des prévisions pour les 96 prochaines observations
+forecast_arma <- forecast(arma_model, h = 96)
+
+# Affichage des prédictions
+plot(forecast_arma, main = "Prédiction avec le modèle ARMA", xlab = "Temps", ylab = "Différence de Consommation (kW)")
+
+# Tracé manuel des 96 derniers points et des 96 prédictions ARMA
+forecast_arma_diff <- forecast_arma$mean
+forecast_arma_consumption <- last_value + cumsum(forecast_arma_diff)
+
+plot(last_96_time, last_96_power, type = "l",
+     col = "black", lwd = 2,
+     xlim = c(min(last_96_time), max(forecast_time)),
+     ylim = range(c(last_96_power, forecast_arma_consumption), na.rm = TRUE),
+     main = "Prédiction du modèle ARMA",
+     xlab = "Temps", ylab = "Consommation (kW)")
+lines(forecast_time, forecast_arma_consumption, col = "blue", lwd = 2, lty = 2)
+legend("topright", legend = c("Consommation réelle", "Consommation prédite"),
+       col = c("black", "blue"), lty = c(1, 2), lwd = 2)
+
+# Modèle Auto-Régressif Intégré Moyenne Mobile : ARIMA
+# Ajustement du modèle ARIMA (Auto-Régressif Intégré Moyenne Mobile) d'ordre (1,1,1)
+arima_model <- arima(train_power_diff, order = c(1, 1, 1))
+
+# Affichage du résumé du modèle
+summary(arima_model)
+
+# Génération des prévisions pour les 96 prochaines observations
+forecast_arima <- forecast(arima_model, h = 96)
+
+# Affichage des prédictions
+plot(forecast_arima, main = "Prédiction avec le modèle ARIMA", xlab = "Temps", ylab = "Différence de Consommation (kW)")
+
+# Tracé manuel des 96 derniers points et des 96 prédictions ARIMA
+forecast_arima_diff <- forecast_arima$mean
+forecast_arima_consumption <- last_value + cumsum(forecast_arima_diff)
+
+plot(last_96_time, last_96_power, type = "l",
+     col = "black", lwd = 2,
+     xlim = c(min(last_96_time), max(forecast_time)),
+     ylim = range(c(last_96_power, forecast_arima_consumption), na.rm = TRUE),
+     main = "Prédiction du modèle ARIMA",
+     xlab = "Temps", ylab = "Consommation (kW)")
+lines(forecast_time, forecast_arima_consumption, col = "blue", lwd = 2, lty = 2)
+legend("topright", legend = c("Consommation réelle", "Consommation prédite"),
+       col = c("black", "blue"), lty = c(1, 2), lwd = 2)
+
+# Modèle Auto-Régressif Intégré Moyenne Mobile avec Saisonnalité : SARIMA
+# Ajustement du modèle SARIMA (1,1,1)(1,1,1)[96]
+sarima_model <- arima(train_power_diff, order = c(1, 1, 1),
+                      seasonal = list(order = c(1, 1, 1), period = 96))
+
+# Affichage du résumé du modèle
+summary(sarima_model)
+
+# Génération des prévisions pour les 96 prochaines observations
+forecast_sarima <- forecast(sarima_model, h = 96)
+
+# Affichage des prédictions
+plot(forecast_sarima, main = "Prédiction avec le modèle SARIMA", xlab = "Temps", ylab = "Différence de Consommation (kW)")
+
+plot(forecast_sarima, main = "Prédiction avec le modèle SARIMA", xlab = "Temps", ylab = "Différence de Consommation (kW)",
+     xlim = c(100, 200), ylim = c(-10, 10))
+
+# Tracé manuel des 96 derniers points et des 96 prédictions SARIMA
+forecast_sarima_diff <- forecast_sarima$mean
+forecast_sarima_consumption <- last_value + cumsum(forecast_sarima_diff)
+
+plot(last_96_time, last_96_power, type = "l",
+     col = "black", lwd = 2,
+     xlim = c(min(last_96_time), max(forecast_time)),
+     ylim = range(c(last_96_power, forecast_sarima_consumption), na.rm = TRUE),
+     main = "Prédiction du modèle SARIMA",
+     xlab = "Temps", ylab = "Consommation (kW)")
+lines(forecast_time, forecast_sarima_consumption, col = "blue", lwd = 2, lty = 2)
+legend("topright", legend = c("Consommation réelle", "Consommation prédite"),
+       col = c("black", "blue"), lty = c(1, 2), lwd = 2)

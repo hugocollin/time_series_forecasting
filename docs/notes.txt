@@ -1,27 +1,8 @@
-### **2. ARIMA Models**
-- **Non-Seasonal ARIMA (AutoRegressive Integrated Moving Average)**:
-  - Includes models like ARIMA(0,1,0) (random walk) and ARIMA(0,2,1) (linear exponential smoothing).
-- **Seasonal ARIMA (SARIMA)**:
-  - Accounts for both seasonal and non-seasonal components (e.g., SARIMA(p, d, q)(P, D, Q)[T]).
-
-### **3. Regression Models**
-- **Linear Regression**: Useful as a baseline but may not be efficient if the data contains trends or seasonality.
-- **Regression with Time Components**: To account for periodic effects or external predictors (e.g., temperature in your case).
-
-Modèles ARIMA :
-AR (Auto-Régressif)
-MA (Moyenne Mobile)
-ARMA (Auto-Régressif et Moyenne Mobile)
-ARIMA (Auto-Régressif Intégré de Moyenne Mobile)
-SARIMA (ARIMA Saisonniers)
-
-Modèles à composantes :
-Décomposition de séries temporelles (additive et multiplicative)
-Modèles multiplicatifs saisonniers
-
 Modèles de régression avec variables exogènes :
 Régression linéaire avec la température comme variable explicative
 Modèles ARIMAX (ARIMA avec variables exogènes)
+- **Linear Regression**: Useful as a baseline but may not be efficient if the data contains trends or seasonality.
+- **Regression with Time Components**: To account for periodic effects or external predictors (e.g., temperature in your case).
 
 Modèles spécifiques :
 Modèles à changement de régime (Markov Switching)
@@ -31,9 +12,9 @@ Modèles basés sur les méthodes non-paramétriques :
 Méthodes de régression locale
 Modèles de lissage par spline
 
-#################
+Les modèles de Boosting en général. Et souvent le Extreme Gradient Boosting est le meilleur sur de nombreuses tâches donc ca sera aussi sûrement ton meilleur modèle pour les séries temporelles
 
-Regression Logisitque
+#################
 
 ### **4. Model Selection and Evaluation**
 For each model:
