@@ -1,9 +1,3 @@
-Modèles de régression avec variables exogènes :
-Régression linéaire avec la température comme variable explicative
-Modèles ARIMAX (ARIMA avec variables exogènes)
-- **Linear Regression**: Useful as a baseline but may not be efficient if the data contains trends or seasonality.
-- **Regression with Time Components**: To account for periodic effects or external predictors (e.g., temperature in your case).
-
 Modèles spécifiques :
 Modèles à changement de régime (Markov Switching)
 Modèles GARCH (pour la variance conditionnelle)
@@ -14,13 +8,10 @@ Modèles de lissage par spline
 
 Les modèles de Boosting en général. Et souvent le Extreme Gradient Boosting est le meilleur sur de nombreuses tâches donc ca sera aussi sûrement ton meilleur modèle pour les séries temporelles
 
-#################
 
-### **4. Model Selection and Evaluation**
-For each model:
+Regression with ARIMA(5,0,4)(0,1,0)[96] errors
 - **Parameter Tuning**: Adjust parameters (e.g., α, β, γ for exponential smoothing; p, d, q for ARIMA).
 - **Cross-Validation**: Apply time-series cross-validation.
-- **Performance Metrics**: Use RMSE, MAPE, or other suitable error metrics.
 
 ### **Additional Techniques Covered**
 - **Moving Averages**: For trend or seasonal component smoothing.

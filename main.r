@@ -163,8 +163,7 @@ pacf(train_power_diff, lag.max = 5000, main = "PACF sur la série différenciée
 # Le PACF possède un pic important au début, puis des pics plus faibles et une décroissance vers zéro. Cela suggère la présence d'une composante AR (Autorégressive) d'ordre 1.
 
 # Test de Ljung-Box
-lb_test <- Box.test(train_power_diff, lag = 96, type = "Ljung-Box")
-print(lb_test)
+Box.test(train_power_diff, lag = 10, type = "Ljung-Box")
 
 # [COMMENTAIRE]
 # La p-value du test de Ljung-Box est inférieure au seuil de 0.05, nous rejetons donc que les résidus peuvent être assimilés à du bruit blanc.
@@ -234,3 +233,25 @@ forecast_sarima <- forecast(sarima_model, h = 96)
 
 # Affichage des prédictions
 plot(forecast_sarima, main = "Prédiction avec le modèle SARIMA", xlab = "Temps", ylab = "Différence de Consommation (kW)", xlim = c(2056.5, 2057.9), ylim = c(-50, 50))
+
+# Modèle Auto-Régressif Intégré Moyenne Mobile avec Exogène : ARIMAX 
+# Ajustement du modèle ARIMAX (Auto-Régressif Intégré Moyenne Mobile avec Exogène)
+arimax_model <- auto.arima(train_data_ts[, 1],
+                           xreg = train_data_ts[, 2])
+
+# Affichage du résumé du modèle
+summary(arimax_model)
+
+# Génération des prévisions pour les 96 prochaines observations
+forecast_arimax <- forecast(arimax_model,
+                            xreg = test_data_ts[, 2],
+                            h = 96)
+
+# Affichage des prédictions
+plot(forecast_arimax, main = "Prédiction avec le modèle ARIMAX", xlab = "Temps", ylab = "Consommation (kW)", xlim = c(2056.5, 2057.9))
+
+# Extraction des résidus du modèle ARIMAX
+residuals_arimax <- residuals(arimax_model)
+
+# Test de Ljung-Box pour vérifier si les résidus sont du bruit blanc
+Box.test(residuals_arimax, lag = 20, type = "Ljung-Box")
