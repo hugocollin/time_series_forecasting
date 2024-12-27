@@ -1,19 +1,4 @@
-Modèles spécifiques :
-Modèles à changement de régime (Markov Switching)
-Modèles GARCH (pour la variance conditionnelle)
-
-Modèles basés sur les méthodes non-paramétriques :
-Méthodes de régression locale
-Modèles de lissage par spline
-
-Les modèles de Boosting en général. Et souvent le Extreme Gradient Boosting est le meilleur sur de nombreuses tâches donc ca sera aussi sûrement ton meilleur modèle pour les séries temporelles
-
-
 Regression with ARIMA(5,0,4)(0,1,0)[96] errors
 - **Parameter Tuning**: Adjust parameters (e.g., α, β, γ for exponential smoothing; p, d, q for ARIMA).
 - **Cross-Validation**: Apply time-series cross-validation.
-
-### **Additional Techniques Covered**
-- **Moving Averages**: For trend or seasonal component smoothing.
-- **Differencing**: To make non-stationary data stationary.
-- **Decomposition**: Separate components (trend, seasonal, residual) for exploratory analysis.
+- Comparaison des modèles

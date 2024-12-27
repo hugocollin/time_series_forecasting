@@ -2,15 +2,25 @@
 library(readxl)
 library(forecast)
 library(tseries)
+library(dplyr)
+library(randomForest)
+library(xgboost)
+library(e1071)
 
 # -----/ I. Mise en forme des données et visualisation /-----
 
 # Chargement des données
+setwd ("C:/Users/hugoc/Documents/GitHub/time_series_forecasting")
 data_path <- file.path("data", "Elec-train.xlsx")
 data <- read_excel(data_path)
 
-# Mise en forme des données
+# Changement du format de la colonne temps
 data$Timestamp <- as.POSIXct(data$Timestamp, format = "%m/%d/%Y %H:%M")
+
+# Renommage des colonnes
+data <- data %>%
+  rename(Power = `Power (kW)`,
+         Temp = `Temp (C°)`)
 
 # Affichage du jeu de données
 head(data)
@@ -20,19 +30,28 @@ train_data <- subset(data, Timestamp < as.POSIXct("2010-02-17 00:00:00"))
 test_data  <- subset(data, Timestamp >= as.POSIXct("2010-02-17 00:00:00"))
 
 # Transformation des données en série temporelle multivariée (96 observations par jour)
-train_data_ts <- ts(train_data[, c("Power (kW)", "Temp (C°)")],
+train_data_ts <- ts(train_data[, c("Power", "Temp")],
                     start = c(2010, 1),
                     frequency = 96)
 
-test_data_ts <- ts(test_data[, c("Power (kW)", "Temp (C°)")],
+test_data_ts <- ts(test_data[, c("Power", "Temp")],
                    frequency = 96)
-
-# Affichage des premières valeurs des séries temporelles
-head(train_data_ts)
-head(test_data_ts)
 
 # Affichage du graphique de la série temporelle
 plot(train_data_ts, main = "Consommation électrique et température dans le temps", xlab = "Temps", ylab = "",  lty = c(1, 2), lwd = c(1, 1))
+
+# Préparation des données pour les modèles à réseaux de neurones
+nn_train_data <- train_data %>%
+  mutate(Hour = as.numeric(format(Timestamp, "%H")),
+         Day = as.numeric(format(Timestamp, "%j")))
+
+nn_test_data <- test_data %>%
+  mutate(Hour = as.numeric(format(Timestamp, "%H")),
+         Day = as.numeric(format(Timestamp, "%j")))
+
+# Affichage des statistiques des données
+summary(nn_train_data)
+summary(nn_test_data)
 
 # -----/ II. Analyse exploratoire des données /-----
 
@@ -253,5 +272,97 @@ plot(forecast_arimax, main = "Prédiction avec le modèle ARIMAX", xlab = "Temps
 # Extraction des résidus du modèle ARIMAX
 residuals_arimax <- residuals(arimax_model)
 
+checkresiduals(arimax_model)
+
 # Test de Ljung-Box pour vérifier si les résidus sont du bruit blanc
 Box.test(residuals_arimax, lag = 20, type = "Ljung-Box")
+
+# -----/ 3. Modèles à réseaux de neuronnes /-----
+# Modèle de réseaux de neurones auto-régressifs : NNAR
+# Ajustement du modèle NNAR
+nnar_model <- nnetar(train_data_ts[, 1])
+
+# Affichage du résumé du modèle
+summary(nnar_model)
+
+# Génération des prévisions pour les 96 prochaines observations
+forecast_nnar <- forecast(nnar_model, h = 96)
+
+# Affichage des prédictions
+plot(forecast_nnar, main = "Prédiction avec le modèle NNAR", xlab = "Temps", ylab = "Consommation (kW)", xlim = c(2056.5, 2057.9))
+
+# Extraction des résidus du modèle NNAR
+residuals_nnar <- residuals(nnar_model)
+
+# Vérification des résidus
+checkresiduals(nnar_model)
+
+# Test de Ljung-Box pour vérifier si les résidus sont du bruit blanc
+Box.test(residuals_nnar, lag = 20, type = "Ljung-Box")
+
+# Création d'une fonction pour calculer le RMSE
+rmse <- function(actual, predicted) {
+  sqrt(mean((actual - predicted)^2))
+}
+
+# Modèle Random Forest
+rf_model <- randomForest(Power ~ Temp + Hour + Day,
+                         data = nn_train_data, ntree = 100)
+rf_predictions_train <- predict(rf_model, newdata = nn_train_data)
+rf_rmse <- rmse(nn_train_data$Power, rf_predictions_train)
+
+# Modèle Gradient Boosting
+train_matrix <- model.matrix(Power ~ Temp + Hour + Day, data = nn_train_data)
+test_matrix <- model.matrix(~ Temp + Hour + Day, data = nn_test_data)
+
+gb_model <- xgboost(data = train_matrix, label = nn_train_data$Power, nrounds = 100)
+gb_predictions_train <- predict(gb_model, newdata = train_matrix)
+gb_rmse <- rmse(nn_train_data$Power, gb_predictions_train)
+
+# Modèle SVM
+svm_model <- svm(Power ~ Temp + Hour + Day,
+                 data = nn_train_data, kernel = "radial")
+svm_train_data <- nn_train_data %>% select(-Power)
+svm_predictions_train <- predict(svm_model, newdata = svm_train_data)
+svm_rmse <- rmse(nn_train_data$Power, svm_predictions_train)
+svm_test_data <- nn_test_data %>% select(-Power)
+
+# Modèle LM
+lm_model <- lm(Power ~ Temp + Hour + Day, data = nn_train_data)
+lm_predictions_train <- predict(lm_model, newdata = nn_train_data)
+lm_rmse <- rmse(nn_train_data$Power, lm_predictions_train)
+
+# Résultats
+results <- data.frame(
+  Model = c("Random Forest", "Gradient Boosting", "SVM", "Linear Regression"),
+  RMSE = c(rf_rmse, gb_rmse, svm_rmse, lm_rmse)
+)
+
+print(results)
+
+# Prédictions finales pour le jeu de test
+rf_test_predictions <- predict(rf_model, newdata = nn_test_data)
+gb_test_predictions <- predict(gb_model, newdata = test_matrix)
+svm_test_predictions <- predict(svm_model, newdata = svm_test_data)
+lm_test_predictions <- predict(lm_model, newdata = nn_test_data)
+
+# Afficher les prédictions pour 17/02/2010
+final_predictions <- data.frame(
+  Timestamp = nn_test_data$Timestamp,
+  Random_Forest = rf_test_predictions,
+  Gradient_Boosting = gb_test_predictions,
+  SVM = svm_test_predictions,
+  Linear_Regression = lm_test_predictions
+)
+
+print(final_predictions)
+
+# Affichage des prédictions dans un graphique
+plot(final_predictions$Timestamp, final_predictions$Random_Forest, type = "l", col = "#ff5733",
+     ylim = range(final_predictions[, 2:5]), xlab = "Temps", ylab = "Consommation (kW)",
+     main = "Prédictions des modèles à réseaux de neurones")
+lines(final_predictions$Timestamp, final_predictions$Gradient_Boosting, col = "#3498db")
+lines(final_predictions$Timestamp, final_predictions$SVM, col = "#27ae60")
+lines(final_predictions$Timestamp, final_predictions$Linear_Regression, col = "#f1c40f")
+legend("topleft", legend = c("Random Forest", "Gradient Boosting", "SVM", "Linear Regression"),
+       col = c("#ff5733", "#3498db", "#27ae60", "#f1c40f"), lty = 1)
