@@ -7,6 +7,13 @@ library(randomForest)
 library(xgboost)
 library(e1071)
 
+# Création de la fonction pour le calcul des métriques d'évaluation
+calculate_metrics <- function(actual, predicted) {
+  rmse <- sqrt(mean((actual - predicted)^2))
+  mape <- mean(abs((actual - predicted) / actual)) * 100
+  return(list(RMSE = rmse, MAPE = mape))
+}
+
 # -----/ I. Mise en forme des données et visualisation /-----
 
 # Chargement des données
@@ -25,23 +32,33 @@ data <- data %>%
 # Affichage du jeu de données
 head(data)
 
-# Séparation des données en jeu d'entraînement et jeu de test (entre les données exitantes et les données futures à prédire)
-train_data <- subset(data, Timestamp < as.POSIXct("2010-02-17 00:00:00"))
+# Séparation des données en jeu d'entraînement, validation et test
+train_data <- subset(data, Timestamp < as.POSIXct("2010-02-16 00:00:00"))
+validate_data <- subset(data, Timestamp >= as.POSIXct("2010-02-16 00:00:00") & Timestamp < as.POSIXct("2010-02-17 00:00:00"))
 test_data  <- subset(data, Timestamp >= as.POSIXct("2010-02-17 00:00:00"))
 
 # Transformation des données en série temporelle multivariée (96 observations par jour)
 train_data_ts <- ts(train_data[, c("Power", "Temp")],
-                    start = c(2010, 1),
                     frequency = 96)
+
+validate_data_ts <- ts(validate_data[, c("Power", "Temp")],
+                       frequency = 96)
 
 test_data_ts <- ts(test_data[, c("Power", "Temp")],
                    frequency = 96)
 
-# Affichage du graphique de la série temporelle
+# Affichage du graphique de la série temporelle de train
 plot(train_data_ts, main = "Consommation électrique et température dans le temps", xlab = "Temps", ylab = "",  lty = c(1, 2), lwd = c(1, 1))
+
+# Affichage du graphique de la série temporelle de validation
+plot(validate_data_ts, main = "Consommation électrique et température dans le temps", xlab = "Temps", ylab = "",  lty = c(1, 2), lwd = c(1, 1))
 
 # Préparation des données pour les modèles à réseaux de neurones
 nn_train_data <- train_data %>%
+  mutate(Hour = as.numeric(format(Timestamp, "%H")),
+         Day = as.numeric(format(Timestamp, "%j")))
+
+nn_validate_data <- validate_data %>%
   mutate(Hour = as.numeric(format(Timestamp, "%H")),
          Day = as.numeric(format(Timestamp, "%j")))
 
@@ -51,6 +68,7 @@ nn_test_data <- test_data %>%
 
 # Affichage des statistiques des données
 summary(nn_train_data)
+summary(nn_validate_data)
 summary(nn_test_data)
 
 # -----/ II. Analyse exploratoire des données /-----
@@ -114,12 +132,6 @@ pacf(train_data_ts[, 1], lag.max = 5000, main = "PACF - Consommation électrique
 # [COMMENTAIRE]
 # Le PACF confirme et précise les observations précédentes, une forte dépendance à court terme et une forte saisonnalité quotidienne.
 
-# Réalisation d'un Augmented Dickey-Fuller Test
-adf.test(train_data_ts[, 1], alternative = "stationary")
-
-# [COMMENTAIRE]
-# Étant donné que la p-value (0.01) est inférieure au seuil de significativité de 0.05 et que la statistique de test Dickey-Fuller = -14.169, nous rejetons l'hypothèse nulle de non-stationnarité. Cela veut donc dire que la série temporelle est stationnaire ce qui rentre en contradiction avec les observations précédentes. Nous essayerons donc d'appliquer par la suite une différenciation pour rendre la série stationnaire.
-
 # -----/ III. Prédiction de la consommation électrique /-----
 # -----/ 1. Modèles de lissage exponentiel /-----
 
@@ -130,10 +142,17 @@ ses_model <- ses(train_data_ts[, 1], h = 96)
 summary(ses_model)
 
 # Enregistrement des prédictions
-predictions <- ses_model$mean
+ses_predictions <- ses_model$mean
 
-# Affiche des prédictions avec le modèle de lissage exponentiel simple
-plot(ses_model, main = "Prédiction du modèle de Lissage Exponentiel Simple", xlab = "Temps", ylab = "Consommation (kW)", xlim = c(2056.5, 2057.9), ylim = c(-100, 400))
+# Calcul des métriques pour le modèle SES
+ses_metrics <- calculate_metrics(validate_data$Power, ses_predictions)
+
+# Affichage des métriques
+cat("Évaluation du modèle SES:\n")
+print(ses_metrics)
+
+# Affiche des prédictions
+plot(ses_model, main = "Prédictions du modèle de Lissage Exponentiel Simple", xlab = "Temps", ylab = "Consommation (kW)", xlim = c(46, 48))
 
 # Modèle du Lissage Exponentiel Double : Holt Linear Trend Method
 # Ajustement du modèle Holt
@@ -143,23 +162,38 @@ holt_model <- holt(train_data_ts[, 1], h = 96)
 summary(holt_model)
 
 # Enregistrement des prédictions
-predictions_holt <- holt_model$mean
+holt_predictions <- holt_model$mean
+
+# Calcul des métriques
+holt_metrics <- calculate_metrics(validate_data$Power, holt_predictions)
+
+# Affichage des métriques
+cat("\nÉvaluation du modèle Holt Linear Trend:\n")
+print(holt_metrics)
 
 # Affichage des prédictions
-plot(holt_model, main = "Prédiction du modèle de Lissage Exponentiel Double", xlab = "Temps", ylab = "Consommation (kW)", xlim = c(2056.5, 2057.9), ylim = c(-100, 400))
+plot(holt_model, main = "Prédictions du modèle de Lissage Exponentiel Double", xlab = "Temps", ylab = "Consommation (kW)", xlim = c(46, 48))
 
 # [COMMENTAIRE]
 # Les modèles prédisent une valeur constante après la dernière observation (ligne bleue horizontale). Nous obtenons de mauvais résultats car les modèles ne prennent pas en compte les tendances ni la saisonnalité, ce qui explique l'absence de variation dans la prévision. Il n’est donc pas adapté pour faire une prédiction sur notre jeu de données.
 # Concernant les lissages exponentiels triples : Holt-Winters Method - Additive Seasonal et Multiplicative seasonal il est impossible de les utiliser car la fréquence des données est trop élevée.
 # De manière générale, les modèles de lissage exponentiel ne sont pas adaptés pour prédire ces données, car elles contiennent une tendance et une saisonnalité significatives.
-# Résultats RMSE et MAPE
+
+# Affichage des prédictions sur le jeu de validation
+plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
+     xlab = "Temps", ylab = "Consommation (kW)", main = "Prédictions avec les modèles de lissage exponentiel")
+lines(validate_data$Timestamp, ses_predictions, col = "blue", lwd = 2, lty = 2)
+lines(validate_data$Timestamp, holt_predictions, col = "red", lwd = 2, lty = 2)
+legend("topleft", legend = c("Données réelles", "Données prédites par le modèle SES", "Données prédites par le modèle Holt"),
+       col = c("black", "blue", "red"), lty = c(1, 2, 2), lwd = 2)
 
 # -----/ 2. Modèles ARIMA /-----
-# Application d'une différenciation pour enlever la tendance et la saisonnalité pour la consommation électrique
-train_power_diff <- diff(train_data_ts[, 1], lag = 96, differences = 1)
+# Application d'une différenciation pour enlever la tendance et la saisonnalité
+train_data_power_diff <- diff(train_data_ts[, 1], lag = 96, differences = 1)
+train_data_temp_diff <- diff(train_data_ts[, 2], lag = 96, differences = 1)
 
 # Décomposition additive de la série temporelle différenciée pour la consommation électrique
-autoplot(decompose(train_power_diff, type = "additive"), main = "Décomposition additive sur la série différenciée - Consommation électrique")
+autoplot(decompose(train_data_power_diff, type = "additive"), main = "Décomposition additive sur la série différenciée - Consommation électrique")
 
 # [COMMENTAIRE]
 # 1. Data :
@@ -170,65 +204,32 @@ autoplot(decompose(train_power_diff, type = "additive"), main = "Décomposition 
 # Après la différenciation saisonnière avec un lag de 96, la composante saisonnière devrait être proche de zéro. C'est ce que l'on observe sur le graphique. La différenciation a effectivement retiré la saisonnalité journalière.
 
 # Réalisation d'une ACF
-acf(train_power_diff, lag.max = 5000, main = "ACF sur la série différenciée - Consommation électrique")
+acf(train_data_power_diff, lag.max = 5000, main = "ACF sur la série différenciée - Consommation électrique")
 
 # [COMMENTAIRE]
 # L'ACF obtenue montre encore des pics significatifs (beaucoup moins nombreux qu'avant la différenciation) notamment aux premiers lags, qui décroissent progressivement vers zéro. Cela suggère la présence d'une composante MA (Moyenne Mobile).
 
 # Réalisation d'une PACF
-pacf(train_power_diff, lag.max = 5000, main = "PACF sur la série différenciée - Consommation électrique")
+pacf(train_data_power_diff, lag.max = 5000, main = "PACF sur la série différenciée - Consommation électrique")
 
 # [COMMENTAIRE]
-# Le PACF possède un pic important au début, puis des pics plus faibles et une décroissance vers zéro. Cela suggère la présence d'une composante AR (Autorégressive) d'ordre 1.
+# Le PACF possède un pic important au début, puis des pics plus faibles et une décroissance vers zéro. Cela suggère la présence d'une composante AR (Autorégressive).
 
 # Test de Ljung-Box
-Box.test(train_power_diff, lag = 10, type = "Ljung-Box")
+Box.test(train_data_power_diff, lag = 10, type = "Ljung-Box")
+
+# Test Augmented Dickey-Fuller
+adf.test(train_data_power_diff, alternative = "stationary")
 
 # [COMMENTAIRE]
-# La p-value du test de Ljung-Box est inférieure au seuil de 0.05, nous rejetons donc que les résidus peuvent être assimilés à du bruit blanc.
-
-# Modèle Auto-Régressif : AR
-# Ajustement du modèle Auto-Régressif (AR) d'ordre 1
-ar_model <- arima(train_power_diff, order = c(1, 0, 0))
-
-# Affichage du résumé du modèle
-summary(ar_model)
-
-# Génération des prévisions pour les 96 prochaines observations
-forecast_ar <- forecast(ar_model, h = 96)
-
-# Affichage des prédictions
-plot(forecast_ar, main = "Prédiction du modèle Auto-Régressif", xlab = "Temps", ylab = "Différence de Consommation (kW)", xlim = c(2056.5, 2057.9), ylim = c(-50, 50))
-
-# Modèle Moyenne Mobile : MA
-# Ajustement du modèle de Moyenne Mobile (MA) d'ordre 1
-ma_model <- arima(train_power_diff, order = c(0, 0, 1))
-
-# Affichage du résumé du modèle
-summary(ma_model)
-
-# Génération des prévisions pour les 96 prochaines observations
-forecast_ma <- forecast(ma_model, h = 96)
-
-# Affichage des prédictions
-plot(forecast_ma, main = "Prédiction avec le modèle Moyenne Mobile", xlab = "Temps", ylab = "Différence de Consommation (kW)", xlim = c(2056.5, 2057.9), ylim = c(-50, 50))
-
-# Modèle Auto-Régressif et Moyenne Mobile : ARMA
-# Ajustement du modèle Auto-Régressif et Moyenne Mobile (ARMA) d'ordre (1, 1)
-arma_model <- arima(train_power_diff, order = c(1, 0, 1))
-
-# Affichage du résumé du modèle
-summary(arma_model)
-
-# Génération des prévisions pour les 96 prochaines observations
-forecast_arma <- forecast(arma_model, h = 96)
-
-# Affichage des prédictions
-plot(forecast_arma, main = "Prédiction avec le modèle ARMA", xlab = "Temps", ylab = "Différence de Consommation (kW)", xlim = c(2056.5, 2057.9), ylim = c(-50, 50))
+# Le test de Ljung-Box rend un résultat où X-squared = 5495.8 et p-value < 2.2e-16. Ici, la p-value extrêmement faible indique que les résidus de la série différenciée présentent encore des autocorrélations significatives, ce qui suggère qu'un modèle ARIMA pourrait capturer ces corrélations.
+# Pour le test Augmented Dickey-Fuller, nous obtenons un Dickey-Fuller = -13.498 et p-value = 0.01. La série différenciée est donc stationnaire (l’hypothèse nulle de non-stationnarité est rejetée) et cela confirme que la différenciation a correctement éliminé la tendance et la saisonnalité initiales.
+# Une deuxième différenciation n'est donc pas nécessaire car le test Augmented Dickey-Fuller montre que la série est stationnaire après la première différenciation saisonnière avec un lag de 96 (p-value < 0.01). Faire une deuxième différenciation non saisonnière risquerait de sur-différencier la série, ce qui peut compliquer le modèle ARIMA sans améliorer la qualité des prévisions.
 
 # Modèle Auto-Régressif Intégré Moyenne Mobile : ARIMA
-# Ajustement du modèle ARIMA (Auto-Régressif Intégré Moyenne Mobile) d'ordre (1,1,1)
-arima_model <- arima(train_power_diff, order = c(1, 1, 1))
+# Ajustement de plusieurs modèles ARIMA
+arima_model <- auto.arima(train_data_power_diff,
+                          stepwise = FALSE)
 
 # Affichage du résumé du modèle
 summary(arima_model)
@@ -236,13 +237,39 @@ summary(arima_model)
 # Génération des prévisions pour les 96 prochaines observations
 forecast_arima <- forecast(arima_model, h = 96)
 
-# Affichage des prédictions
-plot(forecast_arima, main = "Prédiction avec le modèle ARIMA", xlab = "Temps", ylab = "Différence de Consommation (kW)", xlim = c(2056.5, 2057.9), ylim = c(-50, 50))
+# Affichage des prévisions
+plot(forecast_arima, main = "Prévisions avec le modèle ARIMA", xlab = "Temps", ylab = "Consommation (kW)", xlim = c(46.7, 48))
+
+# Obtention des prévisions sur l'échelle originale
+last_observations <- tail(train_data_ts[, 1], 96)
+forecast_arima_mean <- as.numeric(forecast_arima$mean)
+last_observations_num <- as.numeric(last_observations)
+
+# Calcul des prévisions sur l'échelle originale
+forecast_arima_original <- forecast_arima_mean + last_observations_num
+
+# Calcul des métriques
+arima_metrics <- calculate_metrics(validate_data$Power, forecast_arima_original)
+
+# Affichage des métriques
+cat("\nÉvaluation du modèle ARIMA:\n")
+print(arima_metrics)
+
+# Affichage des prédictions sur le jeu de validation
+plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
+     xlab = "Temps", ylab = "Consommation (kW)", main = "Prédictions avec le modèle ARIMA")
+lines(validate_data$Timestamp, forecast_arima_original, col = "blue", lwd = 2, lty = 2)
+legend("topleft", legend = c("Données réelles", "Données prédites par le modèle ARIMA"),
+       col = c("black", "blue"), lty = c(1, 2), lwd = 2)
+
+# Vérification des résidus
+checkresiduals(arima_model)
 
 # Modèle Auto-Régressif Intégré Moyenne Mobile avec Saisonnalité : SARIMA
-# Ajustement du modèle SARIMA (1,1,1)(1,1,1)[96]
-sarima_model <- arima(train_power_diff, order = c(1, 1, 1),
-                      seasonal = list(order = c(1, 1, 1), period = 96))
+# Ajustement du modèle SARIMA
+sarima_model <- auto.arima(train_data_power_diff,
+                           seasonal = TRUE,
+                           stepwise = FALSE)
 
 # Affichage du résumé du modèle
 summary(sarima_model)
@@ -250,32 +277,78 @@ summary(sarima_model)
 # Génération des prévisions pour les 96 prochaines observations
 forecast_sarima <- forecast(sarima_model, h = 96)
 
-# Affichage des prédictions
-plot(forecast_sarima, main = "Prédiction avec le modèle SARIMA", xlab = "Temps", ylab = "Différence de Consommation (kW)", xlim = c(2056.5, 2057.9), ylim = c(-50, 50))
+# Affichage des prévisions
+plot(forecast_sarima, main = "Prévisions avec le modèle SARIMA", xlab = "Temps", ylab = "Consommation (kW)", xlim = c(46.7, 48))
+
+# Obtention des prévisions sur l'échelle originale
+last_observations_sarima <- tail(train_data_ts[, 1], 96)
+forecast_sarima_mean <- as.numeric(forecast_sarima$mean)
+last_observations_sarima_num <- as.numeric(last_observations_sarima)
+
+# Calcul des prévisions sur l'échelle originale
+forecast_sarima_original <- forecast_sarima_mean + last_observations_sarima_num
+
+# Calcul des métriques
+sarima_metrics <- calculate_metrics(validate_data$Power, forecast_sarima_original)
+
+# Affichage des métriques
+cat("\nÉvaluation du modèle SARIMA:\n")
+print(sarima_metrics)
+
+# Affichage des prédictions sur le jeu de validation
+plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
+     xlab = "Temps", ylab = "Consommation (kW)", 
+     main = "Prédictions avec le modèle SARIMA")
+lines(validate_data$Timestamp, forecast_sarima_original, col = "blue", lwd = 2, lty = 2)
+legend("topleft", legend = c("Données réelles", "Données prédites par le modèle SARIMA"),
+       col = c("black", "blue"), lty = c(1, 2), lwd = 2)
+
+# Vérification des résidus
+checkresiduals(sarima_model)
 
 # Modèle Auto-Régressif Intégré Moyenne Mobile avec Exogène : ARIMAX 
-# Ajustement du modèle ARIMAX (Auto-Régressif Intégré Moyenne Mobile avec Exogène)
-arimax_model <- auto.arima(train_data_ts[, 1],
-                           xreg = train_data_ts[, 2])
+# Ajustement du modèle ARIMAX
+arimax_model <- auto.arima(train_data_power_diff,
+                           xreg = train_data_temp_diff,
+                           seasonal = TRUE,
+                           stepwise = FALSE)
 
 # Affichage du résumé du modèle
 summary(arimax_model)
 
 # Génération des prévisions pour les 96 prochaines observations
-forecast_arimax <- forecast(arimax_model,
-                            xreg = test_data_ts[, 2],
+forecast_arimax <- forecast(arimax_model, 
+                            xreg = validate_data_ts[, 2],
                             h = 96)
 
-# Affichage des prédictions
-plot(forecast_arimax, main = "Prédiction avec le modèle ARIMAX", xlab = "Temps", ylab = "Consommation (kW)", xlim = c(2056.5, 2057.9))
+# Affichage des prévisions
+plot(forecast_arimax, main = "Prévisions avec le modèle ARIMAX", xlab = "Temps", ylab = "Différence de Consommation (kW)", xlim = c(46.7, 48))
 
-# Extraction des résidus du modèle ARIMAX
-residuals_arimax <- residuals(arimax_model)
+# Obtention des prévisions sur l'échelle originale
+last_observations_arimax <- tail(train_data_ts[, "Power"], 96)
+forecast_arimax_mean <- as.numeric(forecast_arimax$mean)
+last_observations_arimax_num <- as.numeric(last_observations_arimax)
 
+# Calcul des prévisions sur l'échelle originale
+forecast_arimax_original <- forecast_arimax_mean + last_observations_arimax_num
+
+# Calcul des métriques
+arimax_metrics <- calculate_metrics(validate_data$Power, forecast_arimax_original)
+
+# Affichage des métriques
+cat("\nÉvaluation du modèle ARIMAX:\n")
+print(arimax_metrics)
+
+# Affichage des prédictions sur le jeu de validation
+plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
+     xlab = "Temps", ylab = "Consommation (kW)", 
+     main = "Prédictions avec le modèle ARIMAX")
+lines(validate_data$Timestamp, forecast_arimax_original, col = "blue", lwd = 2, lty = 2)
+legend("topleft", legend = c("Données réelles", "Données prédites par le modèle ARIMAX"),
+       col = c("black", "blue"), lty = c(1, 2), lwd = 2)
+
+# Vérification des résidus
 checkresiduals(arimax_model)
-
-# Test de Ljung-Box pour vérifier si les résidus sont du bruit blanc
-Box.test(residuals_arimax, lag = 20, type = "Ljung-Box")
 
 # -----/ 3. Modèles à réseaux de neuronnes /-----
 # Modèle de réseaux de neurones auto-régressifs : NNAR
@@ -288,81 +361,125 @@ summary(nnar_model)
 # Génération des prévisions pour les 96 prochaines observations
 forecast_nnar <- forecast(nnar_model, h = 96)
 
-# Affichage des prédictions
-plot(forecast_nnar, main = "Prédiction avec le modèle NNAR", xlab = "Temps", ylab = "Consommation (kW)", xlim = c(2056.5, 2057.9))
+# Calcul des métriques
+nnar_metrics <- calculate_metrics(validate_data$Power, forecast_nnar$mean)
 
-# Extraction des résidus du modèle NNAR
-residuals_nnar <- residuals(nnar_model)
+# Affichage des métriques
+cat("\nÉvaluation du modèle NNAR:\n")
+print(nnar_metrics)
 
-# Vérification des résidus
-checkresiduals(nnar_model)
-
-# Test de Ljung-Box pour vérifier si les résidus sont du bruit blanc
-Box.test(residuals_nnar, lag = 20, type = "Ljung-Box")
-
-# Création d'une fonction pour calculer le RMSE
-rmse <- function(actual, predicted) {
-  sqrt(mean((actual - predicted)^2))
-}
+# Affichage des prédictions sur le jeu de validation
+plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
+     xlab = "Temps", ylab = "Consommation (kW)", 
+     main = "Prédictions avec le modèle NNAR")
+lines(validate_data$Timestamp, forecast_nnar$mean, col = "blue", lwd = 2, lty = 2)
+legend("topleft", legend = c("Données réelles", "Données prédites par le modèle NNAR"),
+       col = c("black", "blue"), lty = c(1, 2), lwd = 2)
 
 # Modèle Random Forest
+# Ajustement du modèle Random Forest
 rf_model <- randomForest(Power ~ Temp + Hour + Day,
                          data = nn_train_data, ntree = 100)
-rf_predictions_train <- predict(rf_model, newdata = nn_train_data)
-rf_rmse <- rmse(nn_train_data$Power, rf_predictions_train)
+
+# Affichage du résumé du modèle
+summary(rf_model)
+
+# Génération des prédictions pour les 96 prochaines observations
+rf_predictions <- predict(rf_model, newdata = nn_validate_data)
+
+# Calcul des métriques
+rf_metrics <- calculate_metrics(validate_data$Power, rf_predictions)
+
+# Affichage des métriques
+cat("\nÉvaluation du modèle Random Forest:\n")
+print(rf_metrics)
+
+# Affichage des prédictions sur le jeu de validation
+plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
+     xlab = "Temps", ylab = "Consommation (kW)", 
+     main = "Prédictions avec le modèle Random Forest")
+lines(validate_data$Timestamp, rf_predictions, col = "blue", lwd = 2, lty = 2)
+legend("topleft", legend = c("Données réelles", "Données prédites par le modèle Random Forest"),
+       col = c("black", "blue"), lty = c(1, 2), lwd = 2)
 
 # Modèle Gradient Boosting
+# Création des matrices
 train_matrix <- model.matrix(Power ~ Temp + Hour + Day, data = nn_train_data)
-test_matrix <- model.matrix(~ Temp + Hour + Day, data = nn_test_data)
+validate_matrix <- model.matrix(Power ~ Temp + Hour + Day, data = nn_validate_data)
 
+# Ajustement du modèle
 gb_model <- xgboost(data = train_matrix, label = nn_train_data$Power, nrounds = 100)
-gb_predictions_train <- predict(gb_model, newdata = train_matrix)
-gb_rmse <- rmse(nn_train_data$Power, gb_predictions_train)
+
+# Affichage du résumé du modèle
+summary(gb_model)
+
+# Génération des prédictions pour les 96 prochaines observations
+gb_predictions <- predict(gb_model, newdata = validate_matrix)
+
+# Calcul des métriques
+gb_metrics <- calculate_metrics(validate_data$Power, gb_predictions)
+
+# Affichage des métriques
+cat("\nÉvaluation du modèle Gradient Boosting:\n")
+print(gb_metrics)
+
+# Affichage des prédictions sur le jeu de validation
+plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
+     xlab = "Temps", ylab = "Consommation (kW)", 
+     main = "Prédictions avec le modèle Gradient Boosting")
+lines(validate_data$Timestamp, gb_predictions, col = "blue", lwd = 2, lty = 2)
+legend("topleft", legend = c("Données réelles", "Données prédites par le modèle Gradient Boosting"),
+       col = c("black", "blue"), lty = c(1, 2), lwd = 2)
 
 # Modèle SVM
+# Ajustement du modèle SVM
 svm_model <- svm(Power ~ Temp + Hour + Day,
                  data = nn_train_data, kernel = "radial")
-svm_train_data <- nn_train_data %>% select(-Power)
-svm_predictions_train <- predict(svm_model, newdata = svm_train_data)
-svm_rmse <- rmse(nn_train_data$Power, svm_predictions_train)
-svm_test_data <- nn_test_data %>% select(-Power)
+
+# Affichage du résumé du modèle
+summary(svm_model)
+
+# Génération des prédictions pour les 96 prochaines observations
+svm_predictions <- predict(svm_model, newdata = nn_validate_data)
+
+# Calcul des métriques
+svm_metrics <- calculate_metrics(validate_data$Power, svm_predictions)
+
+# Affichage des métriques
+cat("\nÉvaluation du modèle SVM:\n")
+print(svm_metrics)
+
+# Affichage des prédictions sur le jeu de validation
+plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
+     xlab = "Temps", ylab = "Consommation (kW)", 
+     main = "Prédictions avec le modèle SVM")
+lines(validate_data$Timestamp, svm_predictions, col = "blue", lwd = 2, lty = 2)
+legend("topleft", legend = c("Données réelles", "Données prédites par le modèle SVM"),
+       col = c("black", "blue"), lty = c(1, 2), lwd = 2)
 
 # Modèle LM
+# Ajustement du modèle LM
 lm_model <- lm(Power ~ Temp + Hour + Day, data = nn_train_data)
-lm_predictions_train <- predict(lm_model, newdata = nn_train_data)
-lm_rmse <- rmse(nn_train_data$Power, lm_predictions_train)
 
-# Résultats
-results <- data.frame(
-  Model = c("Random Forest", "Gradient Boosting", "SVM", "Linear Regression"),
-  RMSE = c(rf_rmse, gb_rmse, svm_rmse, lm_rmse)
-)
+# Affichage du résumé du modèle
+summary(lm_model)
 
-print(results)
+# Génération des prédictions pour les 96 prochaines observations
+lm_predictions <- predict(lm_model, newdata = nn_validate_data)
 
-# Prédictions finales pour le jeu de test
-rf_test_predictions <- predict(rf_model, newdata = nn_test_data)
-gb_test_predictions <- predict(gb_model, newdata = test_matrix)
-svm_test_predictions <- predict(svm_model, newdata = svm_test_data)
-lm_test_predictions <- predict(lm_model, newdata = nn_test_data)
+# Calcul des métriques
+lm_metrics <- calculate_metrics(validate_data$Power, lm_predictions)
 
-# Afficher les prédictions pour 17/02/2010
-final_predictions <- data.frame(
-  Timestamp = nn_test_data$Timestamp,
-  Random_Forest = rf_test_predictions,
-  Gradient_Boosting = gb_test_predictions,
-  SVM = svm_test_predictions,
-  Linear_Regression = lm_test_predictions
-)
+# Affichage des métriques
+cat("\nÉvaluation du modèle LM:\n")
+print(lm_metrics)
 
-print(final_predictions)
+# Affichage des prédictions sur le jeu de validation
+plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
+     xlab = "Temps", ylab = "Consommation (kW)", 
+     main = "Prédictions avec le modèle LM")
+lines(validate_data$Timestamp, lm_predictions, col = "blue", lwd = 2, lty = 2)
+legend("topleft", legend = c("Données réelles", "Données prédites par le modèle LM"),
+       col = c("black", "blue"), lty = c(1, 2), lwd = 2)
 
-# Affichage des prédictions dans un graphique
-plot(final_predictions$Timestamp, final_predictions$Random_Forest, type = "l", col = "#ff5733",
-     ylim = range(final_predictions[, 2:5]), xlab = "Temps", ylab = "Consommation (kW)",
-     main = "Prédictions des modèles à réseaux de neurones")
-lines(final_predictions$Timestamp, final_predictions$Gradient_Boosting, col = "#3498db")
-lines(final_predictions$Timestamp, final_predictions$SVM, col = "#27ae60")
-lines(final_predictions$Timestamp, final_predictions$Linear_Regression, col = "#f1c40f")
-legend("topleft", legend = c("Random Forest", "Gradient Boosting", "SVM", "Linear Regression"),
-       col = c("#ff5733", "#3498db", "#27ae60", "#f1c40f"), lty = 1)
+# Résultats (RMSE, MAPE) pour tout les modèles, comparaison des modèles RMSE, MAPE plus faible AIC, BIC

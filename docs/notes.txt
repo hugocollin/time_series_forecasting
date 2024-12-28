@@ -1,4 +1,0 @@
-Regression with ARIMA(5,0,4)(0,1,0)[96] errors
-- **Parameter Tuning**: Adjust parameters (e.g., α, β, γ for exponential smoothing; p, d, q for ARIMA).
-- **Cross-Validation**: Apply time-series cross-validation.
-- Comparaison des modèles
