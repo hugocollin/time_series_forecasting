@@ -147,10 +147,6 @@ ses_predictions <- ses_model$mean
 # Calcul des métriques pour le modèle SES
 ses_metrics <- calculate_metrics(validate_data$Power, ses_predictions)
 
-# Affichage des métriques
-cat("Évaluation du modèle SES:\n")
-print(ses_metrics)
-
 # Affiche des prédictions
 plot(ses_model, main = "Prédictions du modèle de Lissage Exponentiel Simple", xlab = "Temps", ylab = "Consommation (kW)", xlim = c(46, 48))
 
@@ -166,10 +162,6 @@ holt_predictions <- holt_model$mean
 
 # Calcul des métriques
 holt_metrics <- calculate_metrics(validate_data$Power, holt_predictions)
-
-# Affichage des métriques
-cat("\nÉvaluation du modèle Holt Linear Trend:\n")
-print(holt_metrics)
 
 # Affichage des prédictions
 plot(holt_model, main = "Prédictions du modèle de Lissage Exponentiel Double", xlab = "Temps", ylab = "Consommation (kW)", xlim = c(46, 48))
@@ -251,10 +243,6 @@ forecast_arima_original <- forecast_arima_mean + last_observations_num
 # Calcul des métriques
 arima_metrics <- calculate_metrics(validate_data$Power, forecast_arima_original)
 
-# Affichage des métriques
-cat("\nÉvaluation du modèle ARIMA:\n")
-print(arima_metrics)
-
 # Affichage des prédictions sur le jeu de validation
 plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
      xlab = "Temps", ylab = "Consommation (kW)", main = "Prédictions avec le modèle ARIMA")
@@ -290,10 +278,6 @@ forecast_sarima_original <- forecast_sarima_mean + last_observations_sarima_num
 
 # Calcul des métriques
 sarima_metrics <- calculate_metrics(validate_data$Power, forecast_sarima_original)
-
-# Affichage des métriques
-cat("\nÉvaluation du modèle SARIMA:\n")
-print(sarima_metrics)
 
 # Affichage des prédictions sur le jeu de validation
 plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
@@ -335,10 +319,6 @@ forecast_arimax_original <- forecast_arimax_mean + last_observations_arimax_num
 # Calcul des métriques
 arimax_metrics <- calculate_metrics(validate_data$Power, forecast_arimax_original)
 
-# Affichage des métriques
-cat("\nÉvaluation du modèle ARIMAX:\n")
-print(arimax_metrics)
-
 # Affichage des prédictions sur le jeu de validation
 plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
      xlab = "Temps", ylab = "Consommation (kW)", 
@@ -364,10 +344,6 @@ forecast_nnar <- forecast(nnar_model, h = 96)
 # Calcul des métriques
 nnar_metrics <- calculate_metrics(validate_data$Power, forecast_nnar$mean)
 
-# Affichage des métriques
-cat("\nÉvaluation du modèle NNAR:\n")
-print(nnar_metrics)
-
 # Affichage des prédictions sur le jeu de validation
 plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
      xlab = "Temps", ylab = "Consommation (kW)", 
@@ -389,10 +365,6 @@ rf_predictions <- predict(rf_model, newdata = nn_validate_data)
 
 # Calcul des métriques
 rf_metrics <- calculate_metrics(validate_data$Power, rf_predictions)
-
-# Affichage des métriques
-cat("\nÉvaluation du modèle Random Forest:\n")
-print(rf_metrics)
 
 # Affichage des prédictions sur le jeu de validation
 plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
@@ -419,10 +391,6 @@ gb_predictions <- predict(gb_model, newdata = validate_matrix)
 # Calcul des métriques
 gb_metrics <- calculate_metrics(validate_data$Power, gb_predictions)
 
-# Affichage des métriques
-cat("\nÉvaluation du modèle Gradient Boosting:\n")
-print(gb_metrics)
-
 # Affichage des prédictions sur le jeu de validation
 plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
      xlab = "Temps", ylab = "Consommation (kW)", 
@@ -445,10 +413,6 @@ svm_predictions <- predict(svm_model, newdata = nn_validate_data)
 # Calcul des métriques
 svm_metrics <- calculate_metrics(validate_data$Power, svm_predictions)
 
-# Affichage des métriques
-cat("\nÉvaluation du modèle SVM:\n")
-print(svm_metrics)
-
 # Affichage des prédictions sur le jeu de validation
 plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
      xlab = "Temps", ylab = "Consommation (kW)", 
@@ -470,10 +434,6 @@ lm_predictions <- predict(lm_model, newdata = nn_validate_data)
 # Calcul des métriques
 lm_metrics <- calculate_metrics(validate_data$Power, lm_predictions)
 
-# Affichage des métriques
-cat("\nÉvaluation du modèle LM:\n")
-print(lm_metrics)
-
 # Affichage des prédictions sur le jeu de validation
 plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
      xlab = "Temps", ylab = "Consommation (kW)", 
@@ -482,4 +442,14 @@ lines(validate_data$Timestamp, lm_predictions, col = "blue", lwd = 2, lty = 2)
 legend("topleft", legend = c("Données réelles", "Données prédites par le modèle LM"),
        col = c("black", "blue"), lty = c(1, 2), lwd = 2)
 
-# Résultats (RMSE, MAPE) pour tout les modèles, comparaison des modèles RMSE, MAPE plus faible AIC, BIC
+# Métriques de performance pour tous les modèles
+all_metrics <- data.frame(
+  Model = c("ARIMA", "SARIMA", "ARIMAX", "NNAR", "Random Forest", "Gradient Boosting", "SVM", "LM"),
+  RMSE  = c(arima_metrics$RMSE, sarima_metrics$RMSE, arimax_metrics$RMSE, nnar_metrics$RMSE,
+            rf_metrics$RMSE, gb_metrics$RMSE, svm_metrics$RMSE, lm_metrics$RMSE),
+  MAPE  = c(arima_metrics$MAPE, sarima_metrics$MAPE, arimax_metrics$MAPE, nnar_metrics$MAPE,
+            rf_metrics$MAPE, gb_metrics$MAPE, svm_metrics$MAPE, lm_metrics$MAPE)
+)
+
+cat("\nRécapitulatif des métriques de performance :\n")
+print(all_metrics)
