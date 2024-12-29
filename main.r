@@ -59,10 +59,10 @@ test_data_ts <- ts(test_data[, c("Power", "Temp")],
                    frequency = 96)
 
 # Affichage du graphique de la série temporelle de train
-plot(train_data_ts, main = "Consommation électrique et température dans le temps", xlab = "Temps", ylab = "",  lty = c(1, 2), lwd = c(1, 1))
+plot(train_data_ts, main = "Consommation électrique et température dans le temps sur les données de train", xlab = "Temps", ylab = "",  lty = c(1, 2), lwd = c(1, 1))
 
 # Affichage du graphique de la série temporelle de validation
-plot(validate_data_ts, main = "Consommation électrique et température dans le temps", xlab = "Temps", ylab = "",  lty = c(1, 2), lwd = c(1, 1))
+plot(validate_data_ts, main = "Consommation électrique et température dans le temps sur les données de validation", xlab = "Temps", ylab = "",  lty = c(1, 2), lwd = c(1, 1))
 
 # Préparation des données pour les modèles à réseaux de neurones
 nn_train_data <- train_data %>%
@@ -111,39 +111,19 @@ x_labels <- seq(0, 23, by = 1) # 24 labels, de 0 à 23
 # Affichage de l'axe X personnalisé
 axis(1, at = x_ticks, labels = x_labels)
 
-# [COMMENTAIRE]
-# 1. Répétition quotidienne :
-# On observe une structure répétitive dans la consommation électrique au fil de la journée. Les pics de consommation apparaissent systématiquement le matin vers 7h-8h pour se stabiliser jusqu’à 15h-16h. Puis un second pic survient vers 16h-17h jusqu’à 21h-22h, ce qui reflète les habitudes humaines, comme le début de la journée de travail et les activités domestiques en soirée.
-# 2. Creux durant la nuit :
-# La consommation est minimale pendant la nuit, entre 23h et 5h, période où l'activité est généralement plus faible.
-# 3. Variabilité inter-journalière :
-# Bien que la forme globale reste constante d’un jour à l’autre, il existe une variabilité notable d’une journée à l’autre. Cela pourrait être lié à des facteurs externes comme la température, les jours de semaine (travail vs week-end).
-
 # Décomposition additive de la consommation électrique
 autoplot(decompose(train_data_ts[, 1], type = "additive"), main = "Décomposition additive - Consommation électrique")
 
 # Décomposition additive de la température
 autoplot(decompose(train_data_ts[, 2], type = "additive"), main = "Décomposition additive - Température")
 
-# [COMMENTAIRE]
-# 1. Tendance :
-# On observe une tendance globale avec des fluctuations significatives à la baisse au début puis une stabilisation. Cela indique une dynamique de diminution générale de la consommation électrique, et nous pouvons voir qu’à l’inverse la trend de la température augmente, ce qui est logique car plus les températures augmentent moins le besoin de chauffer est nécessaire.
-# 2. Saisonnalité :
-# Au niveau de la composante saisonnière montrent des cycles réguliers très marqués que ce soit pour la consommation ou pour la température. Cela suggère une forte dépendance temporelle, probablement sur des cycles quotidiens (par exemple, variation jour/nuit ou jours ouvrés vs week-end).
-
 # Réalisation d'une ACF
 acf(train_data_ts[, 1], lag.max = 5000, main = "ACF - Consommation électrique")
-
-# [COMMENTAIRE]
-# L'ACF révèle un décalage significatif, un déclin progressif et des pics périodiques, témoignant d'une forte dépendance temporelle. Cela est cohérent avec la saisonnalité observée dans le season plot. Le graphique ACF présente une configuration sinusoïdale marquée et périodique, confirmant un comportement saisonnier prononcé. De plus, la lente décroissance des autocorrélations suggère que la série est non stationnaire et caractérisée par des fluctuations périodiques.
 
 # Réalisation d'une PACF
 pacf(train_data_ts[, 1], lag.max = 5000, main = "PACF - Consommation électrique")
 
-# [COMMENTAIRE]
-# Le PACF confirme et précise les observations précédentes, une forte dépendance à court terme et une forte saisonnalité quotidienne.
-
-# -----/ III. Prédiction de la consommation électrique /-----
+# -----/ III. Utilisation des modèles de prédictions /-----
 # -----/ 1. Modèles de lissage exponentiel /-----
 
 # Modèle du Lissage Exponentiel Simple : Simple Exponential Smoothing Method
@@ -177,11 +157,6 @@ holt_metrics <- calculate_metrics(validate_data$Power, holt_predictions)
 # Affichage des prédictions
 plot(holt_model, main = "Prédictions du modèle de Lissage Exponentiel Double", xlab = "Temps", ylab = "Consommation (kW)", xlim = c(46, 48))
 
-# [COMMENTAIRE]
-# Les modèles prédisent une valeur constante après la dernière observation (ligne bleue horizontale). Nous obtenons de mauvais résultats car les modèles ne prennent pas en compte les tendances ni la saisonnalité, ce qui explique l'absence de variation dans la prévision. Il n’est donc pas adapté pour faire une prédiction sur notre jeu de données.
-# Concernant les lissages exponentiels triples : Holt-Winters Method - Additive Seasonal et Multiplicative seasonal il est impossible de les utiliser car la fréquence des données est trop élevée.
-# De manière générale, les modèles de lissage exponentiel ne sont pas adaptés pour prédire ces données, car elles contiennent une tendance et une saisonnalité significatives.
-
 # Affichage des prédictions sur le jeu de validation
 plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lwd = 2,
      xlab = "Temps", ylab = "Consommation (kW)", main = "Prédictions avec les modèles de lissage exponentiel")
@@ -198,36 +173,17 @@ train_data_temp_diff <- diff(train_data_ts[, 2], lag = 96, differences = 1)
 # Décomposition additive de la série temporelle différenciée pour la consommation électrique
 autoplot(decompose(train_data_power_diff, type = "additive"), main = "Décomposition additive sur la série différenciée - Consommation électrique")
 
-# [COMMENTAIRE]
-# 1. Data :
-# On observe une série plus stationnaire en apparence, avec des fluctuations autour de zéro. Les pics et les creux importants qui reflétaient la saisonnalité journalière ont disparu.
-# 2. Trend :
-# On observe des fluctuations, mais sans tendance globale. Cela suggère que la différenciation a permis de supprimer la tendance linéaire.
-# 3. Saisonalité :
-# Après la différenciation saisonnière avec un lag de 96, la composante saisonnière devrait être proche de zéro. C'est ce que l'on observe sur le graphique. La différenciation a effectivement retiré la saisonnalité journalière.
-
 # Réalisation d'une ACF
 acf(train_data_power_diff, lag.max = 5000, main = "ACF sur la série différenciée - Consommation électrique")
 
-# [COMMENTAIRE]
-# L'ACF obtenue montre encore des pics significatifs (beaucoup moins nombreux qu'avant la différenciation) notamment aux premiers lags, qui décroissent progressivement vers zéro. Cela suggère la présence d'une composante MA (Moyenne Mobile).
-
 # Réalisation d'une PACF
 pacf(train_data_power_diff, lag.max = 5000, main = "PACF sur la série différenciée - Consommation électrique")
-
-# [COMMENTAIRE]
-# Le PACF possède un pic important au début, puis des pics plus faibles et une décroissance vers zéro. Cela suggère la présence d'une composante AR (Autorégressive).
 
 # Test de Ljung-Box
 Box.test(train_data_power_diff, lag = 10, type = "Ljung-Box")
 
 # Test Augmented Dickey-Fuller
 adf.test(train_data_power_diff, alternative = "stationary")
-
-# [COMMENTAIRE]
-# Le test de Ljung-Box rend un résultat où X-squared = 5495.8 et p-value < 2.2e-16. Ici, la p-value extrêmement faible indique que les résidus de la série différenciée présentent encore des autocorrélations significatives, ce qui suggère qu'un modèle ARIMA pourrait capturer ces corrélations.
-# Pour le test Augmented Dickey-Fuller, nous obtenons un Dickey-Fuller = -13.498 et p-value = 0.01. La série différenciée est donc stationnaire (l’hypothèse nulle de non-stationnarité est rejetée) et cela confirme que la différenciation a correctement éliminé la tendance et la saisonnalité initiales.
-# Une deuxième différenciation n'est donc pas nécessaire car le test Augmented Dickey-Fuller montre que la série est stationnaire après la première différenciation saisonnière avec un lag de 96 (p-value < 0.01). Faire une deuxième différenciation non saisonnière risquerait de sur-différencier la série, ce qui peut compliquer le modèle ARIMA sans améliorer la qualité des prévisions.
 
 # Modèle Auto-Régressif Intégré Moyenne Mobile : ARIMA
 # Ajustement de plusieurs modèles ARIMA
@@ -513,7 +469,7 @@ lines(validate_data$Timestamp, lm_predictions, col = "blue", lwd = 2, lty = 2)
 legend("topleft", legend = c("Données réelles", "Données prédites par le modèle LM"),
        col = c("black", "blue"), lty = c(1, 2), lwd = 2)
 
-# -----/ IV. Prédiction sur le jeu de test /-----
+# -----/ IV. Prédiction de la consommation sur le jeu de test /-----
 
 # Métriques de performance pour tous les modèles
 all_metrics <- data.frame(
@@ -534,7 +490,7 @@ nnar_test_forecast <- forecast(nnar_model, h = nrow(test_data))
 plot(1:nrow(test_data), nnar_test_forecast$mean, type = "l", col = "blue", lwd = 2,
      xlab = "Temps (index)", ylab = "Consommation (kW)",
      main = "Prédictions sur le jeu de test avec le modèle NNAR (sans température)")
-legend("topleft", legend = c("Données prédites par NNAR"),
+legend("topleft", legend = c("Données prédites par le modèle NNAR"),
        col = c("blue"), lty = 1, lwd = 2)
 
 # Prédictions sur le jeu de test avec la température (Gradient Boosting)
@@ -547,8 +503,8 @@ gb_test_predictions <- predict(gb_model, newdata = test_matrix)
 # Affichage des prédictions
 plot(1:nrow(nn_test_data), gb_test_predictions, type = "l", col = "blue", lwd = 2,
      xlab = "Temps (index)", ylab = "Consommation (kW)",
-     main = "Prédictions sur le jeu de test avec le modèle Gradient Boosting")
-legend("topleft", legend = c("Données prédites par Gradient Boosting"),
+     main = "Prédictions sur le jeu de test avec le modèle Gradient Boosting (avec température)")
+legend("topleft", legend = c("Données prédites par le modèle Gradient Boosting"),
        col = c("blue"), lty = 1, lwd = 2)
 
 # Sauvegarde des prédictions dans un DataFrame
