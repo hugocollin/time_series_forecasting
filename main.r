@@ -28,7 +28,7 @@ calculate_metrics <- function(actual, predicted) {
 # -----/ I. Mise en forme des données et visualisation /-----
 
 # Chargement des données
-setwd ("C:/Users/hugoc/Documents/GitHub/time_series_forecasting")
+setwd ("chemin vers le dossier racine du projet") # À changer selon le chemin de votre machine
 data_path <- file.path("data", "Elec-train.xlsx")
 data <- read_excel(data_path)
 
@@ -558,4 +558,4 @@ predictions_df <- data.frame(
 )
 
 # Sauvegarde des prédictions dans un fichier Excel
-write_xlsx(predictions_df, "C:/Users/hugoc/Documents/GitHub/time_series_forecasting/data/COLLIN_Hugo.xlsx")
+write_xlsx(predictions_df, "chemin d'enregistrement du fichier") # À changer selon le chemin souhaité
