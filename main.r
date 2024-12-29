@@ -1,5 +1,15 @@
+# Liste des packages requis
+packages <- c("readxl", "writexl", "forecast", "tseries", "dplyr", "randomForest", "xgboost", "e1071", "caret")
+
+# Installer les packages manquants
+installed_packages <- packages %in% rownames(installed.packages())
+if(any(!installed_packages)){
+  install.packages(packages[!installed_packages])
+}
+
 # Chargement des librairies nécessaires
 library(readxl)
+library(writexl)
 library(forecast)
 library(tseries)
 library(dplyr)
@@ -516,3 +526,36 @@ all_metrics <- data.frame(
 
 cat("\nRécapitulatif des métriques de performance :\n")
 print(all_metrics)
+
+# Prédictions sur le jeu de test sans la température (NNAR)
+nnar_test_forecast <- forecast(nnar_model, h = nrow(test_data))
+
+# Affichage des prédictions sur le jeu de test
+plot(1:nrow(test_data), nnar_test_forecast$mean, type = "l", col = "blue", lwd = 2,
+     xlab = "Temps (index)", ylab = "Consommation (kW)",
+     main = "Prédictions sur le jeu de test avec le modèle NNAR (sans température)")
+legend("topleft", legend = c("Données prédites par NNAR"),
+       col = c("blue"), lty = 1, lwd = 2)
+
+# Prédictions sur le jeu de test avec la température (Gradient Boosting)
+# Préparation des données pour le jeu de test
+test_matrix <- model.matrix(~ Temp + Hour + Day, data = nn_test_data)
+
+# Génération des prédictions
+gb_test_predictions <- predict(gb_model, newdata = test_matrix)
+
+# Affichage des prédictions
+plot(1:nrow(nn_test_data), gb_test_predictions, type = "l", col = "blue", lwd = 2,
+     xlab = "Temps (index)", ylab = "Consommation (kW)",
+     main = "Prédictions sur le jeu de test avec le modèle Gradient Boosting")
+legend("topleft", legend = c("Données prédites par Gradient Boosting"),
+       col = c("blue"), lty = 1, lwd = 2)
+
+# Sauvegarde des prédictions dans un DataFrame
+predictions_df <- data.frame(
+  Predictions_without_temp = as.numeric(nnar_test_forecast$mean),
+  Predictions_with_temp = as.numeric(gb_test_predictions)
+)
+
+# Sauvegarde des prédictions dans un fichier Excel
+write_xlsx(predictions_df, "C:/Users/hugoc/Documents/GitHub/time_series_forecasting/data/COLLIN_Hugo.xlsx")
