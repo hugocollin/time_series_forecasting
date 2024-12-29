@@ -6,6 +6,7 @@ library(dplyr)
 library(randomForest)
 library(xgboost)
 library(e1071)
+library(caret)
 
 # Création de la fonction pour le calcul des métriques d'évaluation
 calculate_metrics <- function(actual, predicted) {
@@ -353,9 +354,25 @@ legend("topleft", legend = c("Données réelles", "Données prédites par le mod
        col = c("black", "blue"), lty = c(1, 2), lwd = 2)
 
 # Modèle Random Forest
+# Définition de la grille d'hyperparamètres
+rf_grid <- expand.grid(mtry = c(2, 3))
+
 # Ajustement du modèle Random Forest
+rf_tune <- train(Power ~ Temp + Hour + Day, 
+                 data = nn_train_data, 
+                 method = "rf", 
+                 tuneGrid = rf_grid,
+                 trControl = trainControl(method = "cv", number = 5))
+
+# Affichage des résultats
+print(rf_tune)
+
+# Récupéaration des meilleurs paramètres
+final_rf_model <- rf_tune$finalModel
+
+# Création du modèle avec les meilleurs paramètres
 rf_model <- randomForest(Power ~ Temp + Hour + Day,
-                         data = nn_train_data, ntree = 100)
+                         data = nn_train_data, ntree = final_rf_model$ntree, mtry = final_rf_model$mtry)
 
 # Affichage du résumé du modèle
 summary(rf_model)
@@ -375,12 +392,36 @@ legend("topleft", legend = c("Données réelles", "Données prédites par le mod
        col = c("black", "blue"), lty = c(1, 2), lwd = 2)
 
 # Modèle Gradient Boosting
+# Définition de la grille d'hyperparamètres
+gb_grid <- expand.grid(
+  nrounds          = c(100, 200, 300),
+  max_depth        = c(3, 4, 5),
+  eta              = c(0.05, 0.1, 0.2),
+  gamma            = c(0, 0.3, 0.5),
+  colsample_bytree = c(1),
+  min_child_weight = c(1),
+  subsample        = c(1)
+)
+gb_train_control <- trainControl(method = "cv", number = 5)
+
+# Ajustement du modèle
+gb_tune <- train(
+  Power ~ Temp + Hour + Day,
+  data       = nn_train_data,
+  method     = "xgbTree",
+  trControl  = gb_train_control,
+  tuneGrid   = gb_grid
+)
+
+# Récupéaration des meilleurs paramètres
+best_xgb <- gb_tune$finalModel
+
 # Création des matrices
 train_matrix <- model.matrix(Power ~ Temp + Hour + Day, data = nn_train_data)
 validate_matrix <- model.matrix(Power ~ Temp + Hour + Day, data = nn_validate_data)
 
-# Ajustement du modèle
-gb_model <- xgboost(data = train_matrix, label = nn_train_data$Power, nrounds = 100)
+# Création du modèle avec les meilleurs paramètres
+gb_model <- xgboost(data = train_matrix, label = nn_train_data$Power, nrounds = best_xgb$tuneValue$nrounds, max_depth = best_xgb$tuneValue$max_depth, eta = best_xgb$tuneValue$eta, gamma = best_xgb$tuneValue$gamma, colsample_bytree = best_xgb$tuneValue$colsample_bytree, min_child_weight = best_xgb$tuneValue$min_child_weight, subsample = best_xgb$tuneValue$subsample)
 
 # Affichage du résumé du modèle
 summary(gb_model)
@@ -400,9 +441,29 @@ legend("topleft", legend = c("Données réelles", "Données prédites par le mod
        col = c("black", "blue"), lty = c(1, 2), lwd = 2)
 
 # Modèle SVM
-# Ajustement du modèle SVM
+# Définition de la grille d'hyperparamètres
+svm_grid <- expand.grid(
+  C = c(0.1, 1, 10, 100),
+  sigma = c(0.001, 0.01, 0.1, 1)
+)
+svm_train_control <- trainControl(method = "cv", number = 5)
+
+# Ajustement du modèle
+svm_tune <- train(
+  Power ~ Temp + Hour + Day,
+  data       = nn_train_data,
+  method     = "svmRadial",
+  trControl  = svm_train_control,
+  tuneGrid   = svm_grid,
+  preProcess = c("center", "scale")
+)
+
+# Récupération des meilleurs paramètres
+best_svm <- svm_tune$bestTune
+
+# Création du modèle avec les meilleurs paramètres
 svm_model <- svm(Power ~ Temp + Hour + Day,
-                 data = nn_train_data, kernel = "radial")
+                 data = nn_train_data, kernel = "radial", cost = best_svm$C, gamma = best_svm$sigma)
 
 # Affichage du résumé du modèle
 summary(svm_model)
@@ -441,6 +502,8 @@ plot(validate_data$Timestamp, validate_data$Power, type = "l", col = "black", lw
 lines(validate_data$Timestamp, lm_predictions, col = "blue", lwd = 2, lty = 2)
 legend("topleft", legend = c("Données réelles", "Données prédites par le modèle LM"),
        col = c("black", "blue"), lty = c(1, 2), lwd = 2)
+
+# -----/ IV. Prédiction sur le jeu de test /-----
 
 # Métriques de performance pour tous les modèles
 all_metrics <- data.frame(
