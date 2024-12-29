@@ -28,7 +28,7 @@ calculate_metrics <- function(actual, predicted) {
 # -----/ I. Mise en forme des données et visualisation /-----
 
 # Chargement des données
-setwd ("chemin vers le dossier racine du projet") # À changer selon le chemin de votre machine
+setwd("chemin vers le dossier racine du projet") # À changer selon le chemin de votre machine
 data_path <- file.path("data", "Elec-train.xlsx")
 data <- read_excel(data_path)
 
