@@ -7,7 +7,7 @@
 - [Installation](#installation)
 - [Utilisation](#utilisation)
 - [Contribution](#contribution)
-- [Auteurs](#auteurs)
+- [Auteur](#auteur)
 
 ## Description
 
@@ -77,6 +77,6 @@ Toutes les contributions sont les bienvenues ! Voici comment vous pouvez contrib
 4. Pushez sur la branche (`git push origin feature/AmazingFeature`).
 5. Ouvrez une Pull Request. 
 
-## Auteurs
+## Auteur
 
 Ce projet a été développée par [COLLIN Hugo](https://github.com/hugocollin), dans le cadre du Master 2 SISE.
